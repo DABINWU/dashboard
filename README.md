@@ -329,3 +329,25 @@ git push -u origin main
 如果已经有 Git 仓库或远程地址，不要重复初始化或添加 `origin`，按现有仓库配置提交即可。提交前查看 `git status`，确认没有浏览器目录、快捷方式或个人数据。如果这些文件以前已提交，新增 `.gitignore` 不会自动取消跟踪，也不会清除已有历史。
 
 项目目前没有附带开源许可证文件。需要允许他人使用、修改和分发时，请由维护者选择合适的许可证并添加 `LICENSE`。
+
+
+计划实例
+
+
+需要按实际情况填写 3 处路径：
+填写项	示例
+Chrome 程序完整路径	C:\Program Files\Google\Chrome\Application\chrome.exe
+播放器 HTML 地址，使用 /	file:///D:/dashboard/dashboard-player.html
+浏览器专用数据目录，会自动创建	D:\dashboard\chrome-profile
+
+
+组合后的完整示例：
+"C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk "file:///D:/dashboard/dashboard-player.html" --no-first-run --user-data-dir="D:\dashboard\chrome-profile"
+如果用任务计划程序，需要分开填写：
+程序或脚本：
+C:\Program Files\Google\Chrome\Application\chrome.exe
+添加参数：
+--kiosk "file:///D:/dashboard/dashboard-player.html" --no-first-run --user-data-dir="D:\dashboard\chrome-profile"
+起始于：
+D:\dashboard
+其中 --kiosk、--no-first-run 和 --user-data-dir= 保持原样，只替换路径。
