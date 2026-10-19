@@ -427,7 +427,7 @@
       }
 
       /*
-       * 重新赋值地址，强制刷新 iframe。
+       * 重新赋值地址，重新加载当前 iframe。
        */
       frame.src = frame.src;
     }
@@ -583,11 +583,12 @@
     setInterval(detectBrowserFullscreen, 1000);
 
     /*
-     * 每10分钟刷新当前展示页面，
-     * 防止长期运行后连接断开。
+     * 每10分钟重新加载整个播放器，相当于刷新外层页面。
+     * 所有 iframe 都会重新创建并加载，避免断网报错页一直保留。
+     * 即使轮播暂停也会刷新；刷新后从第一页恢复自动播放。
      */
     setInterval(() => {
-      refreshCurrentPage();
+      window.location.reload();
     }, 10 * 60 * 1000);
 
     detectBrowserFullscreen();
