@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+
+  <title>大屏轮播展示</title>
+
+  <style>
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+      cursor: none;
+      user-select: none;
+    }
+
+    /* 网页展示区域 */
+    #screen-container {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      background: #000;
+    }
+
+    /* 每一个轮播网页 */
+    .screen {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+      opacity: 0;
+      visibility: hidden;
+      background: #000;
+      transition: opacity 0.8s ease;
+    }
+
+    .screen.active {
+      z-index: 2;
+      opacity: 1;
+      visibility: visible;
+    }
+
+    /* 右侧触发区域 */
+    #control-trigger {
+      position: fixed;
+      top: 0;
+      right: 0;
+      z-index: 998;
+      width: 45px;
+      height: 100vh;
+    }
+
+    /* 右侧纵向控制栏 */
+    #controls {
+      position: fixed;
+      top: 50%;
+      right: 16px;
+      z-index: 1000;
+
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+
+      padding: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 12px;
+
+      background: rgba(15, 23, 42, 0.82);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(8px);
+
+      opacity: 0;
+      pointer-events: none;
+
+      transform: translateY(-50%) translateX(25px);
+      transition:
+        opacity 0.25s ease,
+        transform 0.25s ease;
+    }
+
+    body.show-controls {
+      cursor: default;
+    }
+
+    body.show-controls #controls {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(-50%) translateX(0);
+    }
+
+    /* 控制按钮 */
+    .control-button {
+      width: 48px;
+      height: 48px;
+      padding: 0;
+
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 9px;
+
+      color: #fff;
+      background: rgba(255, 255, 255, 0.1);
+
+      font-size: 20px;
+      line-height: 48px;
+      text-align: center;
+
+      cursor: pointer;
+      transition:
+        background 0.2s,
+        transform 0.2s;
+    }
+
+    .control-button:hover {
+      background: #1677ff;
+      transform: scale(1.06);
+    }
+
+    .control-button:active {
+      transform: scale(0.95);
+    }
+
+    /* 当前页面状态 */
+    #status {
+      position: fixed;
+      right: 16px;
+      bottom: 14px;
+      z-index: 999;
+
+      padding: 6px 12px;
+      border-radius: 6px;
+
+      color: rgba(255, 255, 255, 0.75);
+      background: rgba(0, 0, 0, 0.45);
+
+      font-size: 13px;
+      pointer-events: none;
+
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    body.show-controls #status {
+      opacity: 1;
+    }
+
+    /* 普通浏览器中的全屏提示 */
+    #fullscreen-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      background: rgba(0, 0, 0, 0.72);
+      backdrop-filter: blur(6px);
+
+      cursor: pointer;
+    }
+
+    #fullscreen-overlay.hidden {
+      display: none;
+    }
+
+    .fullscreen-card {
+      padding: 32px 45px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 16px;
+
+      color: #fff;
+      background: rgba(15, 23, 42, 0.92);
+
+      text-align: center;
+      box-shadow: 0 12px 50px rgba(0, 0, 0, 0.5);
+    }
+
+    .fullscreen-icon {
+      margin-bottom: 14px;
+      font-size: 42px;
+    }
+
+    .fullscreen-title {
+      margin-bottom: 8px;
+      font-size: 22px;
+      font-weight: 600;
+    }
+
+    .fullscreen-description {
+      color: rgba(255, 255, 255, 0.65);
+      font-size: 14px;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="screen-container"></div>
+
+  <div id="control-trigger"></div>
+
+  <div id="controls">
+    <button
+      id="previousButton"
+      class="control-button"
+      title="上一页"
+    >
+      ↑
+    </button>
+
+    <button
+      id="pauseButton"
+      class="control-button"
+      title="暂停"
+    >
+      Ⅱ
+    </button>
+
+    <button
+      id="nextButton"
+      class="control-button"
+      title="下一页"
+    >
+      ↓
+    </button>
+
+    <button
+      id="refreshButton"
+      class="control-button"
+      title="刷新当前页面"
+    >
+      ↻
+    </button>
+
+    <button
+      id="fullscreenButton"
+      class="control-button"
+      title="进入全屏"
+    >
+      ⛶
+    </button>
+  </div>
+
+  <div id="status"></div>
+
+  <!-- 普通浏览器打开时，点击一次进入全屏 -->
+  <div id="fullscreen-overlay" class="hidden">
+    <div class="fullscreen-card">
+      <div class="fullscreen-icon">⛶</div>
+      <div class="fullscreen-title">点击进入全屏展示</div>
+      <div class="fullscreen-description">
+        进入后网页将自动循环播放
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /*
+     * duration 单位为毫秒：
+     *
+     * 10000  = 10秒
+     * 30000  = 30秒
+     * 60000  = 1分钟
+     * 120000 = 2分钟
+     */
+
+    const pages = [
+      {
+        name: "生产呼叫看板",
+        url: "http://192.168.0.186:6060/",
+        duration: 5000
+      },
+      {
+        name: "库存管理大屏",
+        url: "http://192.168.0.186:8008/inventory-alert/",
+        duration: 5000
+      },
+      {
+        name: "库存管理大屏",
+        url: "https://www.bilibili.com/",
+        duration: 5000
+      },
+      {
+        name: "库存管理大屏",
+        url: "https://www.gcores.com/",
+        duration: 5000
+      },
+      {
+        name: "库存管理大屏",
+        url: "https://www.mchose.com.cn/#/connectDevice",
+        duration: 5000
+      }
+
+
+
+      /*
+      后续继续增加：
+
+      {
+        name: "质量日报",
+        url: "http://192.168.0.186:6060",
+        duration: 20000
+      }
+      */
+    ];
+
+    const container =
+      document.getElementById("screen-container");
+
+    const statusElement =
+      document.getElementById("status");
+
+    const pauseButton =
+      document.getElementById("pauseButton");
+
+    const fullscreenOverlay =
+      document.getElementById("fullscreen-overlay");
+
+    const controlTrigger =
+      document.getElementById("control-trigger");
+
+    let currentIndex = 0;
+    let timer = null;
+    let paused = false;
+    let controlsTimer = null;
+    let fullscreenPromptReady = false;
+
+    /*
+     * 提前创建所有 iframe。
+     * 这样切换时不会重新加载，减少白屏。
+     */
+    pages.forEach((page, index) => {
+      const iframe = document.createElement("iframe");
+
+      iframe.className = "screen";
+      iframe.src = page.url;
+      iframe.title = page.name;
+      iframe.allow = "fullscreen";
+      iframe.setAttribute("loading", "eager");
+
+      if (index === 0) {
+        iframe.classList.add("active");
+      }
+
+      container.appendChild(iframe);
+    });
+
+    const frames =
+      document.querySelectorAll(".screen");
+
+    function showPage(index) {
+      if (pages.length === 0) {
+        statusElement.textContent = "没有配置展示页面";
+        return;
+      }
+
+      frames.forEach((frame) => {
+        frame.classList.remove("active");
+      });
+
+      currentIndex =
+        (index + pages.length) % pages.length;
+
+      frames[currentIndex].classList.add("active");
+
+      statusElement.textContent =
+        `${pages[currentIndex].name}　` +
+        `${currentIndex + 1} / ${pages.length}`;
+
+      startTimer();
+    }
+
+    function startTimer() {
+      clearTimeout(timer);
+
+      if (paused || pages.length <= 1) {
+        return;
+      }
+
+      const duration =
+        pages[currentIndex].duration || 30000;
+
+      timer = setTimeout(() => {
+        showPage(currentIndex + 1);
+      }, duration);
+    }
+
+    function nextPage() {
+      showPage(currentIndex + 1);
+    }
+
+    function previousPage() {
+      showPage(currentIndex - 1);
+    }
+
+    function togglePause() {
+      paused = !paused;
+
+      pauseButton.textContent =
+        paused ? "▶" : "Ⅱ";
+
+      pauseButton.title =
+        paused ? "继续播放" : "暂停";
+
+      if (paused) {
+        clearTimeout(timer);
+      } else {
+        startTimer();
+      }
+    }
+
+    function refreshCurrentPage() {
+      const frame = frames[currentIndex];
+
+      if (!frame) {
+        return;
+      }
+
+      /*
+       * 重新赋值地址，强制刷新 iframe。
+       */
+      frame.src = frame.src;
+    }
+
+    async function enterFullscreen() {
+      try {
+        if (!document.fullscreenElement) {
+          await document.documentElement.requestFullscreen();
+
+          fullscreenOverlay.classList.add("hidden");
+        } else {
+          await document.exitFullscreen();
+        }
+      } catch (error) {
+        console.error("进入全屏失败：", error);
+      }
+    }
+
+    function showControls() {
+      document.body.classList.add("show-controls");
+
+      clearTimeout(controlsTimer);
+
+      controlsTimer = setTimeout(() => {
+        document.body.classList.remove("show-controls");
+      }, 4000);
+    }
+
+    document
+      .getElementById("nextButton")
+      .addEventListener("click", nextPage);
+
+    document
+      .getElementById("previousButton")
+      .addEventListener("click", previousPage);
+
+    document
+      .getElementById("refreshButton")
+      .addEventListener("click", refreshCurrentPage);
+
+    pauseButton.addEventListener(
+      "click",
+      togglePause
+    );
+
+    document
+      .getElementById("fullscreenButton")
+      .addEventListener("click", enterFullscreen);
+
+    fullscreenOverlay.addEventListener(
+      "click",
+      enterFullscreen
+    );
+
+    controlTrigger.addEventListener(
+      "mouseenter",
+      showControls
+    );
+
+    document
+      .getElementById("controls")
+      .addEventListener("mouseenter", showControls);
+
+    document.addEventListener(
+      "mousemove",
+      (event) => {
+        /*
+         * 鼠标进入屏幕右侧120像素范围，
+         * 显示控制按钮。
+         */
+        if (window.innerWidth - event.clientX < 120) {
+          showControls();
+        }
+      }
+    );
+
+    /*
+     * 键盘快捷键：
+     *
+     * 左右方向键：切换页面
+     * 上下方向键：切换页面
+     * 空格：暂停/继续
+     * F：进入或退出全屏
+     * R：刷新当前网页
+     */
+    document.addEventListener(
+      "keydown",
+      (event) => {
+        if (
+          event.key === "ArrowRight" ||
+          event.key === "ArrowDown"
+        ) {
+          nextPage();
+        }
+
+        if (
+          event.key === "ArrowLeft" ||
+          event.key === "ArrowUp"
+        ) {
+          previousPage();
+        }
+
+        if (event.code === "Space") {
+          event.preventDefault();
+          togglePause();
+        }
+
+        if (event.key.toLowerCase() === "f") {
+          enterFullscreen();
+        }
+
+        if (event.key.toLowerCase() === "r") {
+          refreshCurrentPage();
+        }
+
+        showControls();
+      }
+    );
+
+    /*
+     * Kiosk / F11 全屏不一定触发 fullscreenchange。
+     * 开机启动时，浏览器也可能在页面加载后才完成全屏，
+     * 因此需要在窗口变化后重新检测，不能只在启动时检查一次。
+     */
+    function detectBrowserFullscreen() {
+      const heightDifference =
+        Math.abs(window.screen.height - window.innerHeight);
+
+      const widthDifference =
+        Math.abs(window.screen.width - window.innerWidth);
+
+      const isFullscreen = Boolean(document.fullscreenElement) || (
+        heightDifference < 15 && widthDifference < 15
+      );
+
+      fullscreenOverlay.classList.toggle(
+        "hidden",
+        isFullscreen || !fullscreenPromptReady
+      );
+    }
+
+    document.addEventListener("fullscreenchange", detectBrowserFullscreen);
+    window.addEventListener("resize", detectBrowserFullscreen);
+    window.addEventListener("pageshow", detectBrowserFullscreen);
+
+    // 给浏览器留出启动时间，避免 Kiosk 启动时闪现全屏提示。
+    setTimeout(() => {
+      fullscreenPromptReady = true;
+      detectBrowserFullscreen();
+    }, 1500);
+
+    // 兼容开机时显示器、分辨率或窗口状态延迟就绪的情况。
+    setInterval(detectBrowserFullscreen, 1000);
+
+    /*
+     * 每10分钟刷新当前展示页面，
+     * 防止长期运行后连接断开。
+     */
+    setInterval(() => {
+      refreshCurrentPage();
+    }, 10 * 60 * 1000);
+
+    detectBrowserFullscreen();
+    showPage(0);
+  </script>
+</body>
+</html>

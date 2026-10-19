@@ -1,0 +1,10 @@
+# Browser runtime data: caches, cookies, sessions and local profiles
+/.chrome-kiosk/
+/.edge-kiosk/
+
+# Windows shortcuts contain machine-specific absolute paths
+*.lnk
+
+# Windows Explorer metadata
+Thumbs.db
+Desktop.ini
