@@ -8,3 +8,6 @@
 # Windows Explorer metadata
 Thumbs.db
 Desktop.ini
+
+# Local verification artifacts (including dummy browser executables)
+/tests/.kiosk-test-output/

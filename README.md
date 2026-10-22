@@ -8,7 +8,7 @@
 
 1. 下载项目，将 `dashboard-player.html` 放到固定目录，例如 `C:\project\dashboard`。
 2. 用支持 UTF-8 的文本编辑器修改 HTML 中的 `const pages`，填写实际看板地址和播放时长。
-3. 双击 HTML 可以预览；需要无人操作全屏展示时，按下文创建 Chrome 或 Edge 的 Kiosk 快捷方式。
+3. 双击 `Start-Kiosk-Setup.cmd` 打开配置窗口，选择 HTML 和浏览器，点击“一键生成并应用”，自动创建快捷方式和登录自启任务。也可按下文手动配置。
 4. 先验证每个页面能正常展示，再配置开机自启。
 
 当前源码配置了 **5 个网页，每页 5 秒**，包含内网地址和第三方网站测试地址。请在部署前替换为自己的页面；这些地址不保证在其他电脑上可访问，也不保证允许 iframe 嵌入。
@@ -20,9 +20,70 @@
 | `dashboard-player.html` | 播放器页面，包含样式、轮播配置和逻辑 | 是，公开前检查其中的真实地址 |
 | `README.md` | 使用、部署和故障排查说明 | 是 |
 | `.gitignore` | 排除本机浏览器数据和快捷方式 | 是 |
+| `Start-Kiosk-Setup.cmd` | 双击打开一键配置工具 | 是 |
+| `kiosk-setup.ps1` | Windows 图形配置窗口 | 是，与核心脚本一起分发 |
+| `kiosk-core.ps1` | 路径处理、快捷方式生成和计划任务配置 | 是 |
+| `tests/kiosk-setup.tests.ps1` | 配置逻辑验证，不注册真实自启任务 | 是 |
 | `Dashboard-Kiosk.lnk` | 本机生成的 Edge 启动快捷方式，包含绝对路径 | 否，换电脑后应重新创建 |
 | `.chrome-kiosk/` | Chrome 专用用户数据目录，运行后生成 | 否 |
 | `.edge-kiosk/` | Edge 专用用户数据目录，运行后生成 | 否 |
+
+## 一键配置工具（推荐）
+
+适用于 Windows 10 / 11，使用系统自带的 Windows PowerShell 5.1、Windows Forms 和任务计划程序，无需安装 Node.js、Python 或额外 PowerShell 模块。当前提供脚本工具，没有打包成独立 `.exe`。
+
+1. 将 HTML 和它引用的图片、脚本等资源放到固定目录。工具直接使用原文件，不会上传、复制或修改 HTML，保留原有相对资源路径。
+2. 保持 `Start-Kiosk-Setup.cmd`、`kiosk-setup.ps1`、`kiosk-core.ps1` 在同一目录，双击 `Start-Kiosk-Setup.cmd`。
+3. 选择播放器 `.html` / `.htm` 文件。工具与本项目放在一起时，会默认选择 `dashboard-player.html`。
+4. 选择 Chrome 或 Edge；工具自动检测常见安装位置。没有找到时，点击“选择程序”选中对应的 `chrome.exe` 或 `msedge.exe`。
+5. 默认登录后延迟 30 秒启动。可以调整为 0～3600 秒，点击“预览配置”核对自动生成的路径和参数。
+6. 点击“一键生成并应用”。默认生成并验证快捷方式、创建或更新登录自启任务、在桌面放置快捷方式，并立即启动全屏播放器。不要立即播放时，可取消对应勾选。
+
+工具会把程序、参数和工作目录分别写入计划任务，再回读检查，避免只打开普通浏览器。任务绑定当前 Windows 用户，使用“只在用户登录时运行”，不保存密码、不设置自动登录，也不请求最高权限；交互式登录方式见[微软任务注册文档](https://learn.microsoft.com/en-us/windows/win32/taskschd/taskfolder-registertask)。若系统或企业策略禁止当前用户注册任务，会明确报错，不会静默改成其他启动方式。
+
+命令入口的 `-ExecutionPolicy Bypass` 仅用于这一次 PowerShell 进程，不会调用 `Set-ExecutionPolicy` 修改系统策略；组织管理策略仍可能阻止运行。通常无需以管理员身份运行；使用其他账号打开工具时，创建的任务会归属于那个账号。
+
+### 自动生成的内容
+
+配置存放在当前用户目录下，而不是 HTML 所在目录：
+
+```text
+%LOCALAPPDATA%\DashboardPlayer\installations\<自动标识>\
+├── 看板全屏播放-<自动标识>.lnk
+├── task.xml
+├── config.json
+└── profile-chrome\ 或 profile-edge\（浏览器启动后生成）
+```
+
+- `<自动标识>` 根据 HTML 绝对路径和当前用户计算，无需手填。同一用户再次配置同一 HTML 会更新 `DashboardPlayer-<自动标识>` 任务，切换浏览器也不会新增同一看板的任务。
+- 不同 HTML 使用不同任务和配置目录，Chrome / Edge 使用各自的浏览器数据目录。专用目录不继承日常浏览器的 Cookie、扩展和登录状态。
+- `task.xml` 保存可审查的任务配置，`config.json` 保存本次选择，快捷方式和计划任务共用同一组启动参数。可在工具中点击“打开配置目录”查看。
+- 默认任务允许电池供电运行，没有自动运行时限，并忽略同一任务的新实例。这里的实例策略不等于监控浏览器进程，工具没有添加崩溃守护或自动重启浏览器功能。
+- 为避免误改其他配置，只更新带有本工具管理标识的同名任务；遇到同名但不属于本工具的任务会停止操作。手工创建的旧任务和启动目录快捷方式不会被自动移除，需要自行停用，避免重复启动。
+- 配置中途发生错误时会显示已完成步骤和错误，不会报告全部成功。已经生成的文件或已注册的任务可能保留，可以修正后重新配置。
+
+### 停用与迁移
+
+选择原 HTML 后点击“取消此看板自启”，只停用本工具创建的对应任务。不会删除 HTML、快捷方式或浏览器数据，也不会关闭已运行的播放器。
+
+取消勾选“创建 / 更新登录自启任务”只表示本次生成快捷方式时不修改任务，**不会停用以前已经创建的任务**，停用请使用专用按钮。
+
+移动或重命名 HTML 前，请先停用原任务，再在新位置重新配置；旧任务不会自动跟随文件移动。如果原文件已经删除，可在任务计划程序中根据配置记录里的任务名手动停用旧任务。换电脑后重新运行配置工具，不要直接搬运旧快捷方式、任务 XML 或浏览器配置目录。
+
+普通 HTML 不必包含网页 Fullscreen API 逻辑，浏览器的 Kiosk 参数会负责全屏。但这个工具不会为任意 HTML 增加轮播、10 分钟刷新或断网恢复逻辑；这些功能来自本项目的 `dashboard-player.html`。
+
+### 验证范围
+
+已验证 PowerShell 语法、配置窗口构建与布局、中文及特殊字符路径、Chrome / Edge 参数、真实 `.lnk` 保存回读，以及 Windows 任务计划程序对 XML 的内存解析。任务创建、重复更新、停用、同名任务保护和参数丢失检测通过模拟任务接口验证，验证过程不会注册真实 Windows 任务。真实的系统权限、任务落地和重启登录流程仍需在目标电脑点击应用后验证。
+
+开发时可在项目目录执行：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\kiosk-setup.tests.ps1
+powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File .\kiosk-setup.ps1 -SmokeTest
+```
+
+测试文件仅写入已忽略的 `tests/.kiosk-test-output/`，其中的假浏览器文件只用于路径验证，不会执行。
 
 ## 配置轮播页面
 
@@ -313,7 +374,7 @@ setInterval(() => {
 
 ```bash
 git init
-git add README.md .gitignore dashboard-player.html
+git add README.md .gitignore dashboard-player.html Start-Kiosk-Setup.cmd kiosk-setup.ps1 kiosk-core.ps1 tests/kiosk-setup.tests.ps1
 git diff --cached
 git commit -m "Add dashboard player and usage documentation"
 git branch -M main
